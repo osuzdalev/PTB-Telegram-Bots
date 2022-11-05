@@ -45,7 +45,7 @@ async def transcribe_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         time.sleep(1)
 
     logger.info("Transcribing file {}...".format(file_path))
-    model = whisper.load_model("tiny")
+    model = whisper.load_model("tiny.en")
     result = model.transcribe(file_path)
     print(result["text"])
 
