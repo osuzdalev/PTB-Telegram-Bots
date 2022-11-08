@@ -91,7 +91,7 @@ async def requests(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    application = ApplicationBuilder().token(TOKEN).build()
 
     start_handler = CommandHandler('start', start)
     requests_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), requests)
