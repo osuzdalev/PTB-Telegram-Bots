@@ -1,3 +1,4 @@
+from configparser import ConfigParser
 import logging
 from typing import Dict
 import pickle
@@ -16,7 +17,8 @@ from telegram.ext import (
     PicklePersistence,
 )
 
-from config import *
+CONSTANTS = ConfigParser()
+CONSTANTS.read("../constants.ini")
 
 # Enable logging
 logging.basicConfig(
@@ -289,8 +291,9 @@ async def done(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 def main() -> None:
-    pickle_persistence = PicklePersistence(filepath=CASH_DATA_PATH)
-    application = Application.builder().token(CASH_BOT_TOKEN).persistence(persistence=pickle_persistence).build()
+    pickle_persistence = PicklePersistence(filepath=CONSTANTS.get("CONSTANTS", "CASH_DATA_PATH"))
+    application = Application.builder().token(CONSTANTS.get("CONSTANTS", "CASH_BOT_TOKEN"))\
+        .persistence(persistence=pickle_persistence).build()
 
     # Add conversation handler with the states CHOOSING and TYPING_REPLY
     conv_handler = ConversationHandler(

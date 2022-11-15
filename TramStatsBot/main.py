@@ -1,12 +1,14 @@
 from collections import Counter
+from configparser import ConfigParser
 
 import logging
 from telegram import ReplyKeyboardMarkup, Update, constants
 from telegram.ext import filters, MessageHandler, ApplicationBuilder, CommandHandler, ContextTypes
 
-from config import *
 from db import BotDB
 
+CONSTANTS = ConfigParser()
+CONSTANTS.read("../constants.ini")
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -91,7 +93,7 @@ async def requests(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token(TOKEN).build()
+    application = ApplicationBuilder().token(CONSTANTS.get("CONSTANTS", "TRAM_STAT_BOT")).build()
 
     start_handler = CommandHandler('start', start)
     requests_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), requests)

@@ -4,6 +4,7 @@ Users must first authorize themselves by entering the password using the command
 This implementation works only for UNIX and uses "lp -d <printer> <file>" to print files (see function "print_file").
 """
 
+from configparser import ConfigParser
 import os
 import pathlib
 import logging
@@ -11,8 +12,8 @@ import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, filters, CommandHandler, MessageHandler, ContextTypes
 
-from config import *
-
+CONSTANTS = ConfigParser()
+CONSTANTS.read("../constants.ini")
 
 # Configuring logging
 log_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -32,7 +33,7 @@ logger.addHandler(console_handler)
 # Set the printer name with "lpstat -p"
 
 # Verify directory where files for printing should be saved
-pathlib.Path(FILES_DIR).mkdir(parents=True, exist_ok=True)
+pathlib.Path(CONSTANTS.get("CONSTANTS", "FILES_DIR")).mkdir(parents=True, exist_ok=True)
 
 FILE_SIZE_LIMIT = 20 * 1024 * 1024  # 20MB
 
@@ -40,7 +41,7 @@ authorized_chats = set()
 
 
 def print_file(file_path: str) -> None:
-    os.system('lp -d {} {}'.format(PRINTER_NAME, file_path))
+    os.system('lp -d {} {}'.format(CONSTANTS.get("CONSTANTS", "PRINTER_NAME"), file_path))
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -61,7 +62,7 @@ async def authorize(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="You already authorized!")
         return
 
-    if PASSWORD == args:
+    if CONSTANTS.get("CONSTANTS", "PASSWORD") == args:
         authorized_chats.add(update.message.chat_id)
         logger.info("User {} authorized.".format(update.message.from_user.username))
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Now you can print files via sending.")
@@ -86,7 +87,7 @@ async def callback_print_file(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Downloading file...")
 
-    file_path = FILES_DIR + '/' + file_name
+    file_path = CONSTANTS.get("CONSTANTS", "FILES_DIR") + '/' + file_name
 
     logger.info("Downloading file {} from {}...".format(file_name, update.message.from_user.username))
     new_file = await update.message.effective_attachment.get_file()
@@ -96,12 +97,12 @@ async def callback_print_file(update: Update, context: ContextTypes.DEFAULT_TYPE
     logger.info("Printing file {}...".format(file_path))
     print_file(file_path)
 
-    logger.info("File {} sent for printing on {}!".format(file_path, PRINTER_NAME))
+    logger.info("File {} sent for printing on {}!".format(file_path, CONSTANTS.get("CONSTANTS", "PRINTER_NAME")))
     await context.bot.send_message(chat_id=update.effective_chat.id, text="File Printing")
 
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token(PRINTING_BOT_TOKEN).build()
+    application = ApplicationBuilder().token(CONSTANTS.get("CONSTANTS", "PRINTING_BOT_TOKEN")).build()
 
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('auth', authorize))

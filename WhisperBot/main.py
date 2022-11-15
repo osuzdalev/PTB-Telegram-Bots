@@ -1,3 +1,4 @@
+from configparser import ConfigParser
 import logging
 import os
 import time
@@ -7,7 +8,10 @@ from telegram.ext import Application, CommandHandler, MessageHandler, ContextTyp
 import whisper
 from easynmt import EasyNMT
 
-from config import *
+CONSTANTS = ConfigParser()
+CONSTANTS.read("../constants.ini")
+FILE_DURATION_LIMIT = int(CONSTANTS.get("CONSTANTS", "FILE_DURATION_LIMIT"))
+FILE_SIZE_LIMIT = int(CONSTANTS.get("CONSTANTS", "FILE_SIZE_LIMIT"))
 
 # Configuring logging
 log_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -110,7 +114,7 @@ async def wrong_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 
 def main() -> None:
-    application = Application.builder().token(WHISPER_BOT_TOKEN).build()
+    application = Application.builder().token(CONSTANTS.get("CONSTANTS", "WHISPER_BOT_TOKEN")).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.AUDIO | filters.VOICE | filters.Document.AUDIO, transcribe_callback))
