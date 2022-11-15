@@ -110,7 +110,7 @@ async def wrong_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 
 def main() -> None:
-    application = Application.builder().token(TOKEN).build()
+    application = Application.builder().token(WHISPER_BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.AUDIO | filters.VOICE | filters.Document.AUDIO, transcribe_callback))

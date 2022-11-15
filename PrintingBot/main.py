@@ -101,7 +101,7 @@ async def callback_print_file(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token(TOKEN).build()
+    application = ApplicationBuilder().token(PRINTING_BOT_TOKEN).build()
 
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('auth', authorize))
