@@ -148,7 +148,7 @@ async def phone_screen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
                                        "Lorem Ipsum passages, and more recently with desktop publishing software "
                                        "like Aldus PageMaker including versions of Lorem Ipsum.")
     await context.bot.send_photo(query.message.chat_id,
-                                 "https://ss7.vzw.com/is/image/VerizonWireless/zagg-invisibleshield-glass-elite-visionguard-screen-protector-for-leonardo-zag200108321-v-iset")
+                                 "AgACAgQAAxkBAAEaA5pjdOcrgVo49SOVfjOGoKWDQU5ejAACLa8xG_6apVMGam1ZdlbEYwEAAwIAA3MAAysE")
     return ConversationHandler.END
 
 
