@@ -2,8 +2,17 @@ from configparser import ConfigParser
 import logging
 from pprint import pformat
 import sys
+import sqlite3
 
-from telegram import ReplyKeyboardMarkup, Update, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, KeyboardButton
+from telegram import (
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+    Update,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery,
+    KeyboardButton
+)
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -14,6 +23,10 @@ from telegram.ext import (
     PicklePersistence,
     CallbackQueryHandler
 )
+
+from SqliteBasePersistence import SqliteBasePersistence
+from telegram_database import *
+import helpers
 
 CONSTANTS = ConfigParser()
 CONSTANTS.read("../constants.ini")
@@ -26,24 +39,44 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# States for /faq Conversation
 DEVICE_OS, DEVICE, DEVICE_COMPUTER, DEVICE_COMPUTER_SCREEN, DEVICE_PHONE = range(5)
+APPLE, ANDROID_LINUX, WINDOWS = range(3)
 DEVICE_START_OVER, COMPUTER, PHONE = range(3)
+
 COMPUTER_START_OVER, COMPUTER_SCREEN, COMPUTER_KEYBOARD, COMPUTER_PROCESSOR, COMPUTER_GRAPHIC_CARD = range(5)
 COMPUTER_SCREEN_START_OVER, COMPUTER_SCREEN_P1 = range(2)
+
 PHONE_START_OVER, PHONE_SCREEN, PHONE_KEYBOARD, PHONE_PROCESSOR, PHONE_GRAPHIC_CARD = range(5)
-APPLE, ANDROID_LINUX, WINDOWS = range(3)
+
+# States for /forward Conversation
+FORWARD_PAGE_1, FORWARD_PAGE_2, FORWARD_PAGE_3 = range(3)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Stuff"""
+    logger.info("start()")
     user = update.message.from_user
     logger.info("Bot started by user {}".format(user.username))
-    logger.info(update.message.from_user)
+    insert_new_customer(user.id, user.username, user.first_name, user.last_name)
+
     context.user_data["Device_Context"] = None
 
     await update.message.reply_text("Welcome!\n"
                                     "/faq - find an easy fix\n"
                                     "/request - contact customer service")
+
+
+# async def start_contractor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+#     """Stuff"""
+#     logger.info("start_contractor()")
+#     user = update.message.from_user
+#     logger.info("Contractor registering {}".format(user.username))
+#     insert_new_customer(user.id, user.username, user.first_name, user.last_name)
+#
+#     await update.message.reply_text("Welcome!\n"
+#                                     "/faq - find an easy fix\n"
+#                                     "/request - contact customer service")
 
 
 async def faq(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -65,9 +98,9 @@ async def faq(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return DEVICE_OS
 
 
-async def start_over(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def faq_start_over(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Prompt same text & keyboard as `faq` does but not as new message"""
-    logger.info("start_over()")
+    logger.info("faq_start_over()")
     device_context = {"Device_OS_Brand": '', "Device": '', "Part": '', "Problem": ''}
     context.user_data["Device_Context"] = device_context
     logger.info("context.user_data: {}".format(pformat(context.user_data)))
@@ -84,7 +117,7 @@ async def start_over(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     ]
     inline_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text("Select a Brand/OS", reply_markup=inline_markup)
+    await query.edit_message_text("Select a Brand/OS", reply_markup=inline_markup)
 
     return DEVICE_OS
 
@@ -260,47 +293,176 @@ async def phone_screen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return ConversationHandler.END
 
 
-async def request(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Prompt same text & keyboard as `faq` does but not as new message"""
+async def request(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Checks if Customer's PhoneNumber is in Database before sending request to Customer Service
+    if not asks for contact details permission and then sends a CONTACT message to bot"""
     logger.info("request()")
+    try:
+        phone_number = get_customer_data(update.effective_user.id)[-1]
+        logger.info("context: {}".format(_))
+        await reach_customer_service(update, _, phone_number)
+    except (TypeError, AttributeError) as e:
+        contact_button = KeyboardButton(text="send_contact", request_contact=True)
+        contact_keyboard = [[contact_button]]
+        reply_markup = ReplyKeyboardMarkup(contact_keyboard, one_time_keyboard=True)
 
-    contact_keyboard = KeyboardButton(text="send_contact", request_contact=True)
-    custom_keyboard = [[contact_keyboard]]
-    reply_markup = ReplyKeyboardMarkup(custom_keyboard, one_time_keyboard=True)
-
-    await update.message.reply_text(text="Contacting customer service, please share your contact details",
-                                    reply_markup=reply_markup)
+        await update.message.reply_text(text="Contacting customer service, please share your contact details",
+                                        reply_markup=reply_markup)
 
 
-async def reach_customer_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def reach_customer_service(update: Update, context: ContextTypes.DEFAULT_TYPE, phone_number: int = None) -> None:
     """Stuff"""
     logger.info("reach_customer_service()")
-    contact = update.message.contact.to_dict()
-    user = update.message.from_user.to_dict()
+    logger.info("context: {}".format(context))
+    user = update.message.from_user
+    user_data = [user.id, user.name, user.first_name, user.last_name]
 
-    user_info = '@' + user["username"] + '\n' + \
-                contact["first_name"] + '\n' + contact["last_name"] + '\n' + contact["phone_number"]
+    # Check if PhoneNumber already in Database
+    if phone_number is None:
+        phone_number = update.message.contact.phone_number
 
-    device_context = context.user_data["Device_Context"]
+    insert_customer_phone_number(user.id, phone_number)
+
     try:
-        device_info = device_context["Device_OS_Brand"] + '\n' + device_context["Device"] + '\n' + device_context["Part"]\
-                      + '\n' + device_context["Problem"]
-    except TypeError:
+        device_context = context.user_data["Device_Context"]
+    except KeyError:
         logger.info("Empty device_context")
-        device_info = ""
+        device_context = {"Device_OS_Brand": '', "Device": '', "Part": '', "Problem": ''}
 
-    await context.bot.sendMessage(CONSTANTS.get("CONSTANTS", "USER_ID_FR"),
-                                  "Customer service required\n\n{}\n\n{}".format(user_info, device_info))
+    insert_new_order(user.id, device_context)
+    OrderID = get_customer_last_OrderID(user.id)
 
-    await update.message.reply_text("Customer service will contact you")
+    order_message_str = helpers.get_order_message_str(OrderID, user_data, device_context, phone_number)
+
+    await context.bot.sendMessage(CONSTANTS.get("TELEGRAM_ID", "USER_ID_FR"), order_message_str)
+
+    await update.message.reply_text("Customer service will contact you", reply_markup=ReplyKeyboardRemove())
+
+
+async def take(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """(Conceptual) Contractor confirms he is taking the order"""
+    logger.info("take()")
+    order_message_id = update.effective_message.message_id - 1
+    logger.info("chat_data: {}".format(context.chat_data))
+
+
+async def forward(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Contractor command: opens Converstation to select which ContractorID to send current Order to"""
+    logger.info("forward()")
+    # Save current OrderID in the user_data
+    context.bot_data["Current Order"] = context.args[0]
+
+    keyboard = [
+        [InlineKeyboardButton(text="Oleg (Fr)", callback_data=CONSTANTS.get("TELEGRAM_ID", "USER_ID_MAIN")),
+         InlineKeyboardButton(text="Oleg (Fr)", callback_data=CONSTANTS.get("TELEGRAM_ID", "USER_ID_MAIN"))],
+        [InlineKeyboardButton(text="NEXT >>", callback_data=FORWARD_PAGE_2)],
+    ]
+    inline_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text("Select Contractor", reply_markup=inline_markup)
+
+    return FORWARD_PAGE_1
+
+
+async def forward_page_1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """First page of the /forward Inline Menu as a Callback Query"""
+    logger.info("forward_page_1()")
+
+    query = update.callback_query
+    await query.answer()
+
+    keyboard = [
+        [InlineKeyboardButton(text="Oleg (Fr)", callback_data=CONSTANTS.get("TELEGRAM_ID", "USER_ID_MAIN")),
+         InlineKeyboardButton(text="Oleg (Fr)", callback_data=CONSTANTS.get("TELEGRAM_ID", "USER_ID_MAIN"))],
+        [InlineKeyboardButton(text="NEXT >>", callback_data=FORWARD_PAGE_2)],
+    ]
+    inline_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.edit_message_text("Select Contractor", reply_markup=inline_markup)
+
+    return FORWARD_PAGE_1
+
+
+async def forward_page_2(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Second page of the /forward Inline Menu"""
+    logger.info("forward_page_2()")
+
+    query = update.callback_query
+    await query.answer()
+
+    keyboard = [
+        [InlineKeyboardButton(text="Oleg (Fr)", callback_data=CONSTANTS.get("TELEGRAM_ID", "USER_ID_MAIN")),
+         InlineKeyboardButton(text="Oleg (Fr)", callback_data=CONSTANTS.get("TELEGRAM_ID", "USER_ID_MAIN"))],
+        [InlineKeyboardButton(text="<< PREVIOUS", callback_data=FORWARD_PAGE_1),
+         InlineKeyboardButton(text="NEXT >>", callback_data=FORWARD_PAGE_3)],
+    ]
+    inline_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.edit_message_text("Select Contractor", reply_markup=inline_markup)
+
+    return FORWARD_PAGE_2
+
+
+async def forward_page_3(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Third page of the /forward Inline Menu"""
+    logger.info("forward_page_3()")
+
+    query = update.callback_query
+    await query.answer()
+
+    keyboard = [
+        [InlineKeyboardButton(text="Oleg (Fr)", callback_data=CONSTANTS.get("TELEGRAM_ID", "USER_ID_MAIN")),
+         InlineKeyboardButton(text="Oleg (Fr)", callback_data=CONSTANTS.get("TELEGRAM_ID", "USER_ID_MAIN"))],
+        [InlineKeyboardButton(text="<< PREVIOUS", callback_data=FORWARD_PAGE_2)],
+    ]
+    inline_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.edit_message_text("Select Contractor", reply_markup=inline_markup)
+
+    return FORWARD_PAGE_3
+
+
+async def forward_to_contractor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """ContractID in current Order is changed to new contractor selected
+    then Order details are sent as a message to Contractor"""
+    logger.info("forward_to_contractor()")
+
+    query = update.callback_query
+    await query.answer()
+
+    # Order
+    order_data = get_order_data(context.bot_data["Current Order"])
+    OrderID = order_data[0]
+
+    # Change the ContractID for the Order
+    contractor_data = get_contractor_data(int(query.data))
+    ContractorID = contractor_data[0]
+    update_order_ContractID(OrderID, ContractorID)
+
+    # Customer
+    customer_data = get_customer_data(order_data[1])
+    customer_phone_number = customer_data[-1]
+
+    order_message_str = helpers.get_order_message_str(OrderID, customer_data, order_data, customer_phone_number)
+
+    await context.bot.sendMessage(ContractorID, order_message_str)
+
+    await query.edit_message_text("Order passed to \n{}\n{}\n{}\n{}"
+                                  .format(contractor_data[1], contractor_data[2], contractor_data[3], contractor_data[4]))
+
+    return ConversationHandler.END
 
 
 def main():
-    application = Application.builder().token(CONSTANTS.get("CONSTANTS", "ORDER_DISPATCHER_BOT_TOKEN")).build()
+    sqlite_base_persistence = SqliteBasePersistence()
+    sqlite_base_persistence.connect_database(CONSTANTS.get("ORDER_DISPATCHER_BOT", "DATABASE_FILEPATH"))
 
-    start_handler = CommandHandler("start", start)
+    application = Application.builder() \
+        .token(CONSTANTS.get("ORDER_DISPATCHER_BOT", "ORDER_DISPATCHER_BOT_TOKEN"))\
+        .persistence(persistence=sqlite_base_persistence)\
+        .build()
 
-    conversation_handler = ConversationHandler(
+    faq_conversation_handler = ConversationHandler(
         entry_points=[CommandHandler("faq", faq)],
         states={
             DEVICE_OS: [
@@ -309,33 +471,59 @@ def main():
                 CallbackQueryHandler(windows, "^" + str(WINDOWS) + "$")
             ],
             DEVICE: [
-                CallbackQueryHandler(start_over, "^" + str(DEVICE_START_OVER) + "$"),
+                CallbackQueryHandler(faq_start_over, "^" + str(DEVICE_START_OVER) + "$"),
                 CallbackQueryHandler(computer, "^" + str(COMPUTER) + "$"),
                 CallbackQueryHandler(phone, "^" + str(PHONE) + "$")
             ],
             DEVICE_COMPUTER: [
-                CallbackQueryHandler(start_over, "^" + str(COMPUTER_START_OVER) + "$"),
+                CallbackQueryHandler(faq_start_over, "^" + str(COMPUTER_START_OVER) + "$"),
                 CallbackQueryHandler(computer_screen, "^" + str(COMPUTER_SCREEN) + "$")
             ],
             DEVICE_COMPUTER_SCREEN: [
-                CallbackQueryHandler(start_over, "^" + str(COMPUTER_SCREEN_START_OVER) + "$"),
+                CallbackQueryHandler(faq_start_over, "^" + str(COMPUTER_SCREEN_START_OVER) + "$"),
                 CallbackQueryHandler(computer_screen_p1, "^" + str(COMPUTER_SCREEN_P1) + "$")
             ],
             DEVICE_PHONE: [
-                CallbackQueryHandler(start_over, "^" + str(PHONE_START_OVER) + "$"),
+                CallbackQueryHandler(faq_start_over, "^" + str(PHONE_START_OVER) + "$"),
                 CallbackQueryHandler(phone_screen, "^" + str(PHONE_SCREEN) + "$")
             ]
         },
         fallbacks=[CommandHandler("start", start)]
     )
 
+    start_handler = CommandHandler("start", start)
+    # start_contractor_handler = CommandHandler("start_contractor", start_contractor)
     request_handler = CommandHandler("request", request)
     contact_handler = MessageHandler(filters.CONTACT, reach_customer_service)
+    take_handler = CommandHandler("take", take)
+
+    forward_conversation_handler = ConversationHandler(
+        entry_points=[CommandHandler("forward", forward)],
+        states={
+            FORWARD_PAGE_1: [
+                CallbackQueryHandler(forward_to_contractor, r"\d{8,10}"),
+                CallbackQueryHandler(forward_page_2, "^" + str(FORWARD_PAGE_2) + "$")
+            ],
+            FORWARD_PAGE_2: [
+                CallbackQueryHandler(forward_to_contractor, r"\d{8,10}"),
+                CallbackQueryHandler(forward_page_1, "^" + str(FORWARD_PAGE_1) + "$"),
+                CallbackQueryHandler(forward_page_3, "^" + str(FORWARD_PAGE_3) + "$")
+            ],
+            FORWARD_PAGE_3: [
+                CallbackQueryHandler(forward_to_contractor, r"\d{8,10}"),
+                CallbackQueryHandler(forward_page_2, "^" + str(FORWARD_PAGE_2) + "$")
+            ],
+        },
+        fallbacks=[CommandHandler("start", start)]
+    )
 
     application.add_handler(start_handler)
-    application.add_handler(conversation_handler)
+    # application.add_handler(start_contractor_handler)
+    application.add_handler(faq_conversation_handler)
     application.add_handler(request_handler)
     application.add_handler(contact_handler)
+    application.add_handler(take_handler)
+    application.add_handler(forward_conversation_handler)
 
     application.run_polling()
 

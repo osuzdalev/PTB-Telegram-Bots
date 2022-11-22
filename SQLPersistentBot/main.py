@@ -46,13 +46,16 @@ async def get(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 
 if __name__ == '__main__':
     sqlite_base_persistence = SqliteBasePersistence()
-    sqlite_base_persistence.connect_database("/Users/osuz/PycharmProjects/Telebot_Playground/5_BasePersistence/db.db")
+    sqlite_base_persistence.connect_database(CONSTANTS.get("PTB_PLAYGROUND", "DATABASE_FILEPATH"))
+
     application = Application.builder()\
-        .token(CONSTANTS.get("CONSTANTS", "PTB_PLAYGROUND_TOKEN"))\
-        .persistence(persistence=sqlite_base_persistence).build()
+        .token(CONSTANTS.get("PTB_PLAYGROUND", "PTB_PLAYGROUND_TOKEN"))\
+        .persistence(persistence=sqlite_base_persistence)\
+        .build()
 
     application.add_handler(CommandHandler('put', put))
     application.add_handler(CommandHandler('fetch', fetch))
     application.add_handler(CommandHandler('remove', remove))
     application.add_handler(CommandHandler('get', get))
+
     application.run_polling()

@@ -1,4 +1,5 @@
 import sqlite3
+from pprint import pformat
 
 from telegram.ext import BasePersistence
 
@@ -35,6 +36,9 @@ class SqliteBasePersistence(BasePersistence):
         pass
 
     async def get_user_data(self):
+        result = self.cursor.execute("SELECT * FROM `Main_Table` ORDER BY `user_id` DESC")
+        print("get_user_data(): ", result.fetchall())
+
         self.cursor.execute("SELECT * FROM `Main_Table` ORDER BY `user_id` DESC")
         user_data = {}
 
@@ -44,7 +48,7 @@ class SqliteBasePersistence(BasePersistence):
             else:
                 user_data[row[1]] = {row[2]: row[3]}
 
-        print("user_data: ", user_data)
+        print("user_data:\n{}".format(pformat(user_data)))
 
         return user_data
 
