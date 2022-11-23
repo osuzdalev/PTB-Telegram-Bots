@@ -236,7 +236,7 @@ def main():
     sqlite_base_persistence.connect_database(CONSTANTS.get("ORDER_DISPATCHER_BOT", "DATABASE_FILEPATH"))
 
     application = Application.builder() \
-        .token(CONSTANTS.get("ORDER_DISPATCHER_BOT", "ORDER_DISPATCHER_BOT_TOKEN"))\
+        .token(CONSTANTS.get("ORDER_DISPATCHER_BOT", "TOKEN"))\
         .persistence(persistence=sqlite_base_persistence)\
         .build()
 

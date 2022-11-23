@@ -2,3 +2,4 @@ pip install python-telegram-bot -U --pre
 pip install git+https://github.com/openai/whisper.git
 brew install ffmpeg
 pip install -U easynmt
+pip3 install telethon
