@@ -5,13 +5,7 @@ import sys
 
 from telegram.ext import BasePersistence
 
-# Enable logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-    stream=sys.stdout,
-)
-logger = logging.getLogger(__name__)
+logger_base_persistence = logging.getLogger(__name__)
 
 
 class SqliteBasePersistence(BasePersistence):
@@ -69,7 +63,7 @@ class SqliteBasePersistence(BasePersistence):
         pass
 
     async def update_user_data(self, user_id: int, data: dict) -> None:
-        logger.info("update_user_data(): {}".format(user_id, data))
+        logger_base_persistence.info("update_user_data(): {}".format(user_id, data))
 
         # result = self.cursor.execute("select * from Customers where CustomerID = ?", (user_id,))
         # if result.fetchone() is not None:

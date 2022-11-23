@@ -1,53 +1,18 @@
-from configparser import ConfigParser
-import logging
-from pprint import pformat
 import sys
-import sqlite3
-
-from telegram import (
-    ReplyKeyboardMarkup,
-    ReplyKeyboardRemove,
-    Update,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    CallbackQuery,
-    KeyboardButton
-)
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    ContextTypes,
-    ConversationHandler,
-    MessageHandler,
-    filters,
-    PicklePersistence,
-    CallbackQueryHandler
-)
 
 from SqliteBasePersistence import SqliteBasePersistence
 from telegram_database import *
 import helpers
-
-CONSTANTS = ConfigParser()
-CONSTANTS.read("../constants.ini")
+from qa import *
 
 # Enable logging
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    #format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format="[%(asctime)s] {%(name)s:%(lineno)d} %(levelname)s - %(message)s",
     level=logging.INFO,
     stream=sys.stdout,
 )
 logger = logging.getLogger(__name__)
-
-# States for /faq Conversation
-DEVICE_OS, DEVICE, DEVICE_COMPUTER, DEVICE_COMPUTER_SCREEN, DEVICE_PHONE = range(5)
-APPLE, ANDROID_LINUX, WINDOWS = range(3)
-DEVICE_START_OVER, COMPUTER, PHONE = range(3)
-
-COMPUTER_START_OVER, COMPUTER_SCREEN, COMPUTER_KEYBOARD, COMPUTER_PROCESSOR, COMPUTER_GRAPHIC_CARD = range(5)
-COMPUTER_SCREEN_START_OVER, COMPUTER_SCREEN_P1 = range(2)
-
-PHONE_START_OVER, PHONE_SCREEN, PHONE_KEYBOARD, PHONE_PROCESSOR, PHONE_GRAPHIC_CARD = range(5)
 
 # States for /forward Conversation
 FORWARD_PAGE_1, FORWARD_PAGE_2, FORWARD_PAGE_3 = range(3)
@@ -67,24 +32,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                                     "/request - contact customer service")
 
 
-# async def start_contractor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-#     """Stuff"""
-#     logger.info("start_contractor()")
-#     user = update.message.from_user
-#     logger.info("Contractor registering {}".format(user.username))
-#     insert_new_customer(user.id, user.username, user.first_name, user.last_name)
-#
-#     await update.message.reply_text("Welcome!\n"
-#                                     "/faq - find an easy fix\n"
-#                                     "/request - contact customer service")
-
-
 async def faq(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Stuff"""
     logger.info("faq()")
     device_context = {"Device_OS_Brand": '', "Device": '', "Part": '', "Problem": ''}
     context.user_data["Device_Context"] = device_context
-    logger.info("context.user_data: {}".format(pformat(context.user_data)))
 
     keyboard = [
         [InlineKeyboardButton(text="Apple/iOS", callback_data=APPLE)],
@@ -103,7 +55,6 @@ async def faq_start_over(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     logger.info("faq_start_over()")
     device_context = {"Device_OS_Brand": '', "Device": '', "Part": '', "Problem": ''}
     context.user_data["Device_Context"] = device_context
-    logger.info("context.user_data: {}".format(pformat(context.user_data)))
 
     # Get CallbackQuery from Update
     query = update.callback_query
@@ -122,184 +73,12 @@ async def faq_start_over(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return DEVICE_OS
 
 
-async def apple(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Prompt same text & keyboard as `faq` does but not as new message"""
-    logger.info("apple()")
-    context.user_data["Device_Context"]["Device_OS_Brand"] = "Apple / iOS"
-    logger.info("context.user_data: {}".format(pformat(context.user_data)))
-
-    query = update.callback_query
-    await query.answer()
-    keyboard = [
-        [InlineKeyboardButton(text="Computer", callback_data=COMPUTER),
-         InlineKeyboardButton(text="Phone", callback_data=PHONE)]
-    ]
-    inline_markup = InlineKeyboardMarkup(keyboard)
-
-    await query.edit_message_text("Select a device", reply_markup=inline_markup)
-
-    return DEVICE
-
-
-async def android_linux(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Prompt same text & keyboard as `faq` does but not as new message"""
-    logger.info("android_linux()")
-    context.user_data["Device_Context"]["Device_OS_Brand"] = "Android / Linux"
-    logger.info("context.user_data: {}".format(pformat(context.user_data)))
-
-    query = update.callback_query
-    await query.answer()
-    keyboard = [
-        [InlineKeyboardButton(text="Computer", callback_data=COMPUTER),
-         InlineKeyboardButton(text="Phone", callback_data=PHONE)]
-    ]
-    inline_markup = InlineKeyboardMarkup(keyboard)
-
-    await query.edit_message_text("Select a device", reply_markup=inline_markup)
-
-    return DEVICE
-
-
-async def windows(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """WINDOWS"""
-    logger.info("windows()")
-    context.user_data["Device_Context"]["Device_OS_Brand"] = "Windows"
-    logger.info("context.user_data: {}".format(pformat(context.user_data)))
-
-    query = update.callback_query
-    await query.answer()
-    keyboard = [
-        [InlineKeyboardButton(text="Computer", callback_data=COMPUTER),
-         InlineKeyboardButton(text="Phone", callback_data=PHONE)]
-    ]
-    inline_markup = InlineKeyboardMarkup(keyboard)
-
-    await query.edit_message_text("Select a device", reply_markup=inline_markup)
-
-    return DEVICE
-
-
-async def computer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Stuff"""
-    logger.info("computer()")
-    context.user_data["Device_Context"]["Device"] = "Computer"
-    logger.info("context.user_data: {}".format(pformat(context.user_data)))
-
-    query = update.callback_query
-    await query.answer()
-
-    keyboard = [
-        [InlineKeyboardButton(text="Computer Screen", callback_data=COMPUTER_SCREEN),
-         InlineKeyboardButton(text="Computer Keyboard", callback_data=COMPUTER_KEYBOARD)],
-        [InlineKeyboardButton(text="Computer Processor", callback_data=COMPUTER_PROCESSOR),
-         InlineKeyboardButton(text="Computer Graphic Card", callback_data=COMPUTER_GRAPHIC_CARD)],
-        [InlineKeyboardButton(text="<< BACK", callback_data=COMPUTER_START_OVER)]
-    ]
-    inline_markup = InlineKeyboardMarkup(keyboard)
-
-    await query.edit_message_text(text="Select a component", reply_markup=inline_markup)
-
-    return DEVICE_COMPUTER
-
-
-async def computer_screen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons. This is the end point of the conversation."""
-    logger.info("computer_screen()")
-    context.user_data["Device_Context"]["Part"] = "Screen"
-    logger.info("context.user_data: {}".format(pformat(context.user_data)))
-
-    query = update.callback_query
-    await query.answer()
-
-    keyboard = [
-        [InlineKeyboardButton(text="Computer Screen P1", callback_data=COMPUTER_SCREEN),
-         InlineKeyboardButton(text="Computer Screen P2", callback_data=COMPUTER_KEYBOARD)],
-        [InlineKeyboardButton(text="Computer Screen P3", callback_data=COMPUTER_PROCESSOR),
-         InlineKeyboardButton(text="Computer Screen P4", callback_data=COMPUTER_GRAPHIC_CARD)],
-        [InlineKeyboardButton(text="<< BACK", callback_data=COMPUTER_SCREEN_START_OVER)]
-    ]
-    inline_markup = InlineKeyboardMarkup(keyboard)
-
-    await query.edit_message_text(text="Select a component", reply_markup=inline_markup)
-
-    return DEVICE_COMPUTER_SCREEN
-
-
-async def computer_screen_p1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """STUFF"""
-    logger.info("computer_screen_p1()")
-    context.user_data["Device_Context"]["Problem"] = "Broken Screen"
-    logger.info("context.user_data: {}".format(pformat(context.user_data)))
-    query = update.callback_query
-    await query.answer()
-
-    await query.edit_message_text(text="Here is the answer to your question:\n"
-                                       "Lorem Ipsum is simply dummy text of the printing and typesetting industry. "
-                                       "Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, "
-                                       "when an unknown printer took a galley of type and scrambled it to make a"
-                                       "type specimen book. It has survived not only five centuries, but also the leap "
-                                       "into electronic typesetting, remaining essentially unchanged. "
-                                       "It was popularised in the 1960s with the release of Letraset sheets containing "
-                                       "Lorem Ipsum passages, and more recently with desktop publishing software "
-                                       "like Aldus PageMaker including versions of Lorem Ipsum.")
-    await context.bot.send_photo(query.message.chat_id,
-                                 "https://i.pcmag.com/imagery/roundups/05ersXu1oMXozYJa66i9GEo-38..v1657319390.jpg")
-    return ConversationHandler.END
-
-
-async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Stuff"""
-    logger.info("phone()")
-    context.user_data["Device_Context"]["Device"] = "Phone"
-    logger.info("context.user_data: {}".format(pformat(context.user_data)))
-
-    query = update.callback_query
-    await query.answer()
-
-    keyboard = [
-        [InlineKeyboardButton(text="Phone Screen", callback_data=PHONE_SCREEN),
-         InlineKeyboardButton(text="Phone Keyboard", callback_data=PHONE_KEYBOARD)],
-        [InlineKeyboardButton(text="Phone Processor", callback_data=PHONE_PROCESSOR),
-         InlineKeyboardButton(text="Phone Graphic Card", callback_data=PHONE_GRAPHIC_CARD)],
-        [InlineKeyboardButton(text="<< BACK", callback_data=PHONE_START_OVER)]
-    ]
-    inline_markup = InlineKeyboardMarkup(keyboard)
-
-    await query.edit_message_text(text="Select a component", reply_markup=inline_markup)
-
-    return PHONE
-
-
-async def phone_screen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons. This is the end point of the conversation."""
-    logger.info("phone_screen()")
-    context.user_data["Device_Context"]["Part"] = "Screen"
-    logger.info("context.user_data: {}".format(pformat(context.user_data)))
-
-    query = update.callback_query
-    await query.answer()
-
-    await query.edit_message_text(text="Here is the answer to your question:\n"
-                                       "Lorem Ipsum is simply dummy text of the printing and typesetting industry. "
-                                       "Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, "
-                                       "when an unknown printer took a galley of type and scrambled it to make a"
-                                       "type specimen book. It has survived not only five centuries, but also the leap "
-                                       "into electronic typesetting, remaining essentially unchanged. "
-                                       "It was popularised in the 1960s with the release of Letraset sheets containing "
-                                       "Lorem Ipsum passages, and more recently with desktop publishing software "
-                                       "like Aldus PageMaker including versions of Lorem Ipsum.")
-    await context.bot.send_photo(query.message.chat_id,
-                                 "AgACAgQAAxkBAAEaA5pjdOcrgVo49SOVfjOGoKWDQU5ejAACLa8xG_6apVMGam1ZdlbEYwEAAwIAA3MAAysE")
-    return ConversationHandler.END
-
-
 async def request(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Checks if Customer's PhoneNumber is in Database before sending request to Customer Service
     if not asks for contact details permission and then sends a CONTACT message to bot"""
     logger.info("request()")
     try:
         phone_number = get_customer_data(update.effective_user.id)[-1]
-        logger.info("context: {}".format(_))
         await reach_customer_service(update, _, phone_number)
     except (TypeError, AttributeError) as e:
         contact_button = KeyboardButton(text="send_contact", request_contact=True)
@@ -313,7 +92,6 @@ async def request(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 async def reach_customer_service(update: Update, context: ContextTypes.DEFAULT_TYPE, phone_number: int = None) -> None:
     """Stuff"""
     logger.info("reach_customer_service()")
-    logger.info("context: {}".format(context))
     user = update.message.from_user
     user_data = [user.id, user.name, user.first_name, user.last_name]
 

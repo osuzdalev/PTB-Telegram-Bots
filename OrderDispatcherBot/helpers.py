@@ -1,23 +1,16 @@
 from configparser import ConfigParser
 import logging
 from pprint import pformat
-import sys
 
 CONSTANTS = ConfigParser()
 CONSTANTS.read("../constants.ini")
 
-# Enable logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-    stream=sys.stdout,
-)
-logger = logging.getLogger(__name__)
+logger_helpers = logging.getLogger(__name__)
 
 
 def get_order_message_str(OrderID: int, user_data: any, device_context: any, phone_number: int = None) -> str:
     """Creates a nice string with all the relevant data of an Order to be sent as a message to Contractor"""
-    logger.info("get_order_message_str()")
+    logger_helpers.info("get_order_message_str()")
     user_info = ""
     if type(user_data) == list:
         user_info = user_data[1] + '\n' + \
@@ -29,7 +22,7 @@ def get_order_message_str(OrderID: int, user_data: any, device_context: any, pho
                     "id:" + str(user_data[0])
 
     device_info = ""
-    logger.info("device_context: {}".format(device_context))
+    logger_helpers.info("device_context: {}".format(device_context))
     if type(device_context) == dict:
         if device_context == {"Device_OS_Brand": '', "Device": '', "Part": '', "Problem": ''}:
             device_info = "Device_OS: " + "-" + '\n' + \
